@@ -1,0 +1,298 @@
+/*
+	A cminus parser 
+*/
+options{
+  DEBUG_PARSER = true;
+}
+
+PARSER_BEGIN(CminusParser)
+
+public class CminusParser {
+
+  /** Main entry point. */
+  public static void main(String args[]) throws ParseException {
+    
+    CminusParser parser;
+    if (args.length == 0) {
+      System.out.println("Cminus.  parser:  Reading from standard input . . .");
+      parser = new CminusParser(System.in);
+    } else if (args.length == 1) {
+      System.out.println("Cminus.   parser  Reading from file " + args[0] + " . . .");
+      try {
+        parser = new CminusParser(new java.io.FileInputStream(args[0]));
+      } catch (java.io.FileNotFoundException e) {
+        System.out.println("Cminus.   parser:  File " + args[0] + " not found.");
+        return;
+      }
+    } else {
+      System.out.println("Cminus.   parser  Usage is one of:");
+      System.out.println("         java CminusParser < inputfile");
+      System.out.println("OR");
+      System.out.println("         java CminusParser inputfile");
+      return;
+    }
+    try {
+      parser.program();
+      System.out.println("Cminus.  token parser:  tokens listed successfully.");
+    } catch (ParseException e) {
+      System.out.println("Cminus.  token parser:  Encountered errors during parse.");
+    }
+  }
+
+}
+
+
+PARSER_END(CminusParser)
+
+/* the grammar and how to handle it */ 
+
+SKIP : /* WHITE SPACE */
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+| "\f"
+}
+
+SKIP: /* Comments */
+{
+  <"/*" (~[])* "*/">
+}
+
+TOKEN : /* Operators */
+{
+  < ASSIGN: "=" >
+
+|  < PLUS: "+" >
+|  < MINUS: "-" >
+|  < TIMES: "*" >
+|  < OVER: "/" >
+|  < LT: "<" >
+|  < GT: ">" >
+|  < EQ: "==" >
+|  < LTE: "<=" >
+|  < GTE: ">=" >
+|  < NOTEQ: "!=" >
+
+}
+
+TOKEN : /* Separators */
+{
+  
+  < SEMI: ";" >
+|  < COMMA: "," >
+|  < LPAREN: "(" >
+|  < RPAREN: ")" >
+|  < SQLPAREN: "[" >
+|  < SQRPAREN: "]" >
+|  < CLPAREN: "{" >
+|  < CRPAREN: "}" >
+|  < LCOMMENT: "/*" >
+|  < RCOMMENT: "*/" >
+
+}
+
+TOKEN: /* Reserved words */
+{
+	< INT: "int" >
+|	< VOID: "void" >
+|	< ELSE: "else" >
+|	< IF: "if" >
+|	< RETURN: "return" >
+|	< WHILE: "while" >
+
+}
+
+TOKEN: /* Reserved words */
+{
+	< EMPTY: "" >
+}
+
+TOKEN : /* Literals */
+{
+  < NUM: "0"|["1"-"9"] (["0"-"9"])* >
+}
+
+TOKEN : /* Identifiers */
+{
+  < ID: ["a"-"z", "A"-"Z"] (["a"-"z", "A"-"Z"])* >
+}
+
+void program(): {}
+{
+	declarationList() <EOF>
+}
+
+void declarationList(): {}
+{
+	declaration() (declaration())*
+}
+
+void declaration(): {}
+{
+	LOOKAHEAD(3) varDeclaration() | funDeclaration() 
+}
+	
+void varDeclaration(): {}
+{
+	typeSpecifier() <ID>
+	(
+	  <SEMI> | <SQLPAREN> <NUM> <SQRPAREN> <SEMI>
+	  
+	 )
+}
+
+void typeSpecifier(): {}
+{
+	<INT> | <VOID>
+}
+
+void funDeclaration(): {}
+{
+	typeSpecifier() <ID> <LPAREN> params() <RPAREN> compoundStmt()
+}
+
+void params(): {}
+{
+	LOOKAHEAD(2) 
+	<VOID> | paramList()
+}
+
+void paramList(): {}
+{
+	param()(<COMMA> param())*
+}
+
+void param(): {}//lookatdis
+{
+	LOOKAHEAD(3) 
+	typeSpecifier() <ID> <SQLPAREN> <SQRPAREN> | typeSpecifier() <ID>
+}
+
+void compoundStmt(): {}
+{
+      //Maybe add in a try catch here ?
+      <CLPAREN> localDeclarations() statementList() <CRPAREN>
+
+}
+
+void localDeclarations(): {}
+{
+	(varDeclaration())*
+}
+
+void statementList(): {}
+{
+	(statement())* 
+}
+
+void statement(): {}
+{
+	//LOOKAHEAD(var()) got rid of this
+	expressionStmt() | compoundStmt() | selectionStmt() | iterationStmt() | returnStmt()
+}
+
+void expressionStmt(): {}
+{
+	//Another try catch potential candidate
+	expression() <SEMI> | <SEMI>
+
+}
+//Changed look ahead to 2
+void selectionStmt(): {}
+{
+	<IF> <LPAREN> expression() <RPAREN> statement()
+	(LOOKAHEAD(2) <ELSE> statement())?
+}
+
+void iterationStmt(): {}
+{
+	<WHILE> <LPAREN> expression() <RPAREN> statement()
+}
+
+void returnStmt(): {}
+{
+    <RETURN> [expression()] <SEMI>   
+   
+}
+
+void expression(): {}
+{
+    //look into this 
+    //simpleExpression() (var() <ASSIGN>)*
+    LOOKAHEAD(5)
+    var() <ASSIGN> expression()
+    |
+    simpleExpression()
+}
+
+void var(): {}
+{
+	//LOOKAHEAD(<ID> <SQLPAREN>) 
+	<ID> (<SQLPAREN> expression() <SQRPAREN>)?
+}
+
+void simpleExpression(): {}
+{
+//addexpr (relop() addexpr())?
+//	LOOKAHEAD(additiveExpression() relop()) 
+//	additiveExpression() relop() additiveExpression() | additiveExpression()
+
+  additiveExpression() (relop() additiveExpression())?
+}
+
+void relop(): {}
+{
+    <LTE> | <LT> | <GT> | <GTE> | <EQ> | <NOTEQ>
+}
+
+void additiveExpression(): {}
+{
+  term() (addop() term())*
+}
+
+void addop(): {}
+{
+	<PLUS> | <MINUS>
+}
+
+void term(): {}
+{
+	factor() (mulop() factor())*
+}
+
+void mulop(): {}
+{
+	<TIMES> | <OVER>
+}
+
+void factor(): {}
+{
+//LOOKAHEAD(2)
+	<NUM> | <LPAREN> expression() <RPAREN> | LOOKAHEAD(2) 
+	call() | var() 
+}
+
+void call(): {}
+{
+	<ID> <LPAREN> args() <RPAREN>
+}
+
+void args(): {}
+{
+//makes optional
+	//argList() | <EMPTY>
+
+  [argList()]
+}
+
+void argList(): {}
+{
+	expression() (<COMMA> expression())*
+}
+
+
+
+
+
